@@ -15,6 +15,8 @@
 #include "Strength/PlasticStrainPolicy.hh"
 #include "Strength/ShearModulusPolicy.hh"
 #include "Strength/YieldStrengthPolicy.hh"
+#include "Hydro/PressurePolicy.hh"
+#include "Hydro/DamagedPressurePolicy.hh"
 #include "DataBase/State.hh"
 #include "DataBase/StateDerivatives.hh"
 #include "DataBase/IncrementState.hh"
@@ -163,6 +165,7 @@ SolidSPH(DataBase<Dimension>& dataBase,
   mBulkModulus(FieldStorageType::CopyFields),
   mShearModulus(FieldStorageType::CopyFields),
   mYieldStrength(FieldStorageType::CopyFields),
+  mDamagedPressure(FieldStorageType::CopyFields),
   mPlasticStrain0(FieldStorageType::CopyFields) {
 
   // Create storage for the state we're holding.
@@ -170,6 +173,7 @@ SolidSPH(DataBase<Dimension>& dataBase,
   mBulkModulus = dataBase.newSolidFieldList(0.0, SolidFieldNames::bulkModulus);
   mShearModulus = dataBase.newSolidFieldList(0.0, SolidFieldNames::shearModulus);
   mYieldStrength = dataBase.newSolidFieldList(0.0, SolidFieldNames::yieldStrength);
+  mDamagedPressure = dataBase.newSolidFieldList(0.0, SolidFieldNames::damagedPressure);
   mPlasticStrain0 = dataBase.newSolidFieldList(0.0, SolidFieldNames::plasticStrain + "0");
 }
 
@@ -191,6 +195,7 @@ initializeProblemStartupDependencies(DataBase<Dimension>& dataBase,
   updateStateFields(SolidFieldNames::bulkModulus, state, derivs);
   updateStateFields(SolidFieldNames::shearModulus, state, derivs);
   updateStateFields(SolidFieldNames::yieldStrength, state, derivs);
+  updateStateFields(SolidFieldNames::damagedPressure, state, derivs);
 
   TIME_END("SolidSPHinitializeStartup");
 }
@@ -213,7 +218,12 @@ registerState(DataBase<Dimension>& dataBase,
   dataBase.resizeFluidFieldList(mBulkModulus, 0.0, SolidFieldNames::bulkModulus, false);
   dataBase.resizeFluidFieldList(mShearModulus, 0.0, SolidFieldNames::shearModulus, false);
   dataBase.resizeFluidFieldList(mYieldStrength, 0.0, SolidFieldNames::yieldStrength, false);
+  dataBase.resizeFluidFieldList(mDamagedPressure, 0.0, SolidFieldNames::damagedPressure, false);
   dataBase.resizeFluidFieldList(mPlasticStrain0, 0.0, SolidFieldNames::plasticStrain + "0", false);
+  auto P = state.fields(HydroFieldNames::pressure, 0.0);
+  state.removePolicy(P, true);
+  state.enroll(P, make_policy<PressurePolicy<Dimension>>(false));
+  state.enroll(mDamagedPressure, make_policy<DamagedPressurePolicy<Dimension>>());
 
   // Register the deviatoric stress and plastic strain to be evolved.
   auto S = dataBase.solidDeviatoricStress();
@@ -348,7 +358,7 @@ evaluateDerivativesImpl(const typename Dimension::Scalar /*time*/,
   const auto massDensity = state.fields(HydroFieldNames::massDensity, 0.0);
   const auto specificThermalEnergy = state.fields(HydroFieldNames::specificThermalEnergy, 0.0);
   const auto H = state.fields(HydroFieldNames::H, SymTensor::zero());
-  const auto pressure = state.fields(HydroFieldNames::pressure, 0.0);
+  const auto damagedPressure = state.fields(SolidFieldNames::damagedPressure, 0.0);
   const auto soundSpeed = state.fields(HydroFieldNames::soundSpeed, 0.0);
   const auto omega = state.fields(HydroFieldNames::omegaGradh, 0.0);
   const auto S = state.fields(SolidFieldNames::deviatoricStress, SymTensor::zero());
@@ -460,7 +470,7 @@ evaluateDerivativesImpl(const typename Dimension::Scalar /*time*/,
       const auto& vi = velocity(nodeListi, i);
       const auto  rhoi = massDensity(nodeListi, i);
       //const auto  epsi = specificThermalEnergy(nodeListi, i);
-      const auto  Pi = pressure(nodeListi, i);
+      const auto  Pi = damagedPressure(nodeListi, i);
       const auto& Hi = H(nodeListi, i);
       const auto  ci = soundSpeed(nodeListi, i);
       const auto  omegai = omega(nodeListi, i);
@@ -493,7 +503,7 @@ evaluateDerivativesImpl(const typename Dimension::Scalar /*time*/,
       const auto& vj = velocity(nodeListj, j);
       const auto  rhoj = massDensity(nodeListj, j);
       //const auto epsj = specificThermalEnergy(nodeListj, j);
-      const auto  Pj = pressure(nodeListj, j);
+      const auto  Pj = damagedPressure(nodeListj, j);
       const auto& Hj = H(nodeListj, j);
       const auto  cj = soundSpeed(nodeListj, j);
       const auto  omegaj = omega(nodeListj, j);
@@ -799,6 +809,7 @@ applyGhostBoundaries(State<Dimension>& state,
   auto K = state.fields(SolidFieldNames::bulkModulus, 0.0);
   auto mu = state.fields(SolidFieldNames::shearModulus, 0.0);
   auto Y = state.fields(SolidFieldNames::yieldStrength, 0.0);
+  auto Pd = state.fields(SolidFieldNames::damagedPressure, 0.0);
   auto fragIDs = state.fields(SolidFieldNames::fragmentIDs, int(1));
   auto pTypes = state.fields(SolidFieldNames::particleTypes, int(0));
 
@@ -807,6 +818,7 @@ applyGhostBoundaries(State<Dimension>& state,
     boundaryPtr->applyFieldListGhostBoundary(K);
     boundaryPtr->applyFieldListGhostBoundary(mu);
     boundaryPtr->applyFieldListGhostBoundary(Y);
+    boundaryPtr->applyFieldListGhostBoundary(Pd);
     boundaryPtr->applyFieldListGhostBoundary(fragIDs);
     boundaryPtr->applyFieldListGhostBoundary(pTypes);
   }
@@ -831,6 +843,7 @@ enforceBoundaries(State<Dimension>& state,
   auto K = state.fields(SolidFieldNames::bulkModulus, 0.0);
   auto mu = state.fields(SolidFieldNames::shearModulus, 0.0);
   auto Y = state.fields(SolidFieldNames::yieldStrength, 0.0);
+  auto Pd = state.fields(SolidFieldNames::damagedPressure, 0.0);
   auto fragIDs = state.fields(SolidFieldNames::fragmentIDs, int(1));
   auto pTypes = state.fields(SolidFieldNames::particleTypes, int(0));
 
@@ -839,6 +852,7 @@ enforceBoundaries(State<Dimension>& state,
     boundaryPtr->enforceFieldListBoundary(K);
     boundaryPtr->enforceFieldListBoundary(mu);
     boundaryPtr->enforceFieldListBoundary(Y);
+    boundaryPtr->enforceFieldListBoundary(Pd);
     boundaryPtr->enforceFieldListBoundary(fragIDs);
     boundaryPtr->enforceFieldListBoundary(pTypes);
   }
@@ -860,6 +874,7 @@ dumpState(FileIO& file, const string& pathName) const {
   file.write(mBulkModulus, pathName + "/bulkModulus");
   file.write(mShearModulus, pathName + "/shearModulus");
   file.write(mYieldStrength, pathName + "/yieldStrength");
+  file.write(mDamagedPressure, pathName + "/damagedPressure");
   file.write(mPlasticStrain0, pathName + "/plasticStrain0");
 }
 
@@ -878,6 +893,7 @@ restoreState(const FileIO& file, const string& pathName) {
   file.read(mBulkModulus, pathName + "/bulkModulus");
   file.read(mShearModulus, pathName + "/shearModulus");
   file.read(mYieldStrength, pathName + "/yieldStrength");
+  file.read(mDamagedPressure, pathName + "/damagedPressure");
   file.read(mPlasticStrain0, pathName + "/plasticStrain0");
 }
 

@@ -1,11 +1,11 @@
 //---------------------------------Spheral++----------------------------------//
-// PressurePolicy -- An implementation of UpdatePolicyBase specialized
-// for the updating the dependent pressure state.
-//
-// Created by JMO, Wed Sep 15 10:47:37 2004
+// DamagedPressurePolicy
+// 
+// Updates the damaged pressure separately from the pressure to avoid circular
+// circular dependencies.
 //----------------------------------------------------------------------------//
-#ifndef __Spheral_PressurePolicy_hh__
-#define __Spheral_PressurePolicy_hh__
+#ifndef __Spheral_DamagedPressurePolicy_hh__
+#define __Spheral_DamagedPressurePolicy_hh__
 
 #include "DataBase/FieldUpdatePolicy.hh"
 
@@ -20,7 +20,7 @@ template<typename Dimension> class FluidNodeList;
 template<typename Dimension, typename DataType> class FieldList;
 
 template<typename Dimension>
-class PressurePolicy: public FieldUpdatePolicy<Dimension, typename Dimension::Scalar> {
+class DamagedPressurePolicy: public FieldUpdatePolicy<Dimension, typename Dimension::Scalar> {
 public:
   //--------------------------- Public Interface ---------------------------//
   // Useful typedefs
@@ -29,9 +29,9 @@ public:
   using KeyType = typename FieldUpdatePolicy<Dimension, Scalar>::KeyType;
 
   // Constructors, destructor.
-  PressurePolicy(const bool damagePressureInPlace = true);
-  virtual ~PressurePolicy() = default;
-  
+  DamagedPressurePolicy();
+  virtual ~DamagedPressurePolicy() = default;
+
   // Overload the methods describing how to update Fields.
   virtual void update(const KeyType& key,
                       State<Dimension>& state,
@@ -44,12 +44,8 @@ public:
   virtual bool operator==(const UpdatePolicyBase<Dimension>& rhs) const override;
 
   // Forbidden methods
-  PressurePolicy(const PressurePolicy& rhs) = delete;
-  PressurePolicy& operator=(const PressurePolicy& rhs) = delete;
-
-private:
-  //--------------------------- Private Interface ---------------------------//
-  bool mDamagePressureInPlace;
+  DamagedPressurePolicy(const DamagedPressurePolicy& rhs) = delete;
+  DamagedPressurePolicy& operator=(const DamagedPressurePolicy& rhs) = delete;
 };
 
 }

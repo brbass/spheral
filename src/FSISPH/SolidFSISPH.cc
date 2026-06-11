@@ -18,6 +18,7 @@
 #include "Hydro/SpecificThermalEnergyPolicy.hh"
 #include "Hydro/SpecificFromTotalThermalEnergyPolicy.hh"
 #include "Hydro/PressurePolicy.hh"
+#include "Hydro/DamagedPressurePolicy.hh"
 #include "Hydro/SoundSpeedPolicy.hh"
 
 #include "Strength/SolidFieldNames.hh"
@@ -249,6 +250,7 @@ initializeProblemStartupDependencies(DataBase<Dimension>& dataBase,
   updateStateFields(SolidFieldNames::bulkModulus, state, derivs);
   updateStateFields(SolidFieldNames::shearModulus, state, derivs);
   updateStateFields(SolidFieldNames::yieldStrength, state, derivs);
+  updateStateFields(SolidFieldNames::damagedPressure, state, derivs);
 
   const auto& mass = dataBase.fluidMass();
   const auto& massDensity = dataBase.fluidMassDensity();
@@ -307,7 +309,7 @@ registerState(DataBase<Dimension>& dataBase,
   // Register the deviatoric stress and plastic strain to be evolved.
   auto positionPolicy = make_policy<IncrementState<Dimension, Vector>>();
   auto velocityPolicy = make_policy<IncrementState<Dimension, Vector>>({HydroFieldNames::position,HydroFieldNames::specificThermalEnergy},true);
-  auto Ppolicy = make_policy<PressurePolicy<Dimension>>();
+  auto Ppolicy = make_policy<PressurePolicy<Dimension>>(false);
   auto csPolicy = make_policy<SoundSpeedPolicy<Dimension>>();
   auto plasticStrainPolicy = make_policy<PlasticStrainPolicy<Dimension>>();
   auto bulkModulusPolicy = make_policy<BulkModulusPolicy<Dimension>>();
@@ -344,7 +346,7 @@ registerState(DataBase<Dimension>& dataBase,
   state.enroll(mVolume,              volumePolicy);
   state.enroll(mSoundSpeed,          csPolicy);
   state.enroll(mPressure,            Ppolicy);
-  state.enroll(mDamagedPressure);                              // Updated by PressurePolicy
+  state.enroll(mDamagedPressure,     make_policy<DamagedPressurePolicy<Dimension>>());
   state.enroll(mBulkModulus,         bulkModulusPolicy);
   state.enroll(mShearModulus,        shearModulusPolicy);
   state.enroll(mYieldStrength,       yieldStrengthPolicy);

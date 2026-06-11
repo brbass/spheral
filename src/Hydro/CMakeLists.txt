@@ -4,6 +4,7 @@ set(Hydro_inst
     CompatibleDifferenceSpecificThermalEnergyPolicy
     NonSymmetricSpecificThermalEnergyPolicy
     PressurePolicy
+    DamagedPressurePolicy
     SoundSpeedPolicy
     SpecificFromTotalThermalEnergyPolicy
     SpecificThermalEnergyPolicy
@@ -31,6 +32,7 @@ set(Hydro_headers
     CompatibleDifferenceSpecificThermalEnergyPolicy.hh
     NonSymmetricSpecificThermalEnergyPolicy.hh
     PressurePolicy.hh
+    DamagedPressurePolicy.hh
     RZNonSymmetricSpecificThermalEnergyPolicy.hh
     SoundSpeedPolicy.hh
     SpecificFromTotalThermalEnergyPolicy.hh
