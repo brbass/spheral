@@ -117,6 +117,7 @@ public:
   const FieldList<Dimension, Scalar>& bulkModulus()            const { return mBulkModulus; }
   const FieldList<Dimension, Scalar>& shearModulus()           const { return mShearModulus; }
   const FieldList<Dimension, Scalar>& yieldStrength()          const { return mYieldStrength; }
+  const FieldList<Dimension, Scalar>& damagedPressure()        const { return mDamagedPressure; }
   const FieldList<Dimension, Scalar>& plasticStrain0()         const { return mPlasticStrain0; }
 
   // Control whether allow damaged material to have stress relieved.
@@ -147,6 +148,7 @@ private:
   FieldList<Dimension, Scalar> mBulkModulus;
   FieldList<Dimension, Scalar> mShearModulus;
   FieldList<Dimension, Scalar> mYieldStrength;
+  FieldList<Dimension, Scalar> mDamagedPressure;
   FieldList<Dimension, Scalar> mPlasticStrain0;
 
 };

@@ -294,7 +294,7 @@ evaluateDerivativesImpl(const Dimension::Scalar time,
   const auto massDensity = state.fields(HydroFieldNames::massDensity, 0.0);
   const auto specificThermalEnergy = state.fields(HydroFieldNames::specificThermalEnergy, 0.0);
   const auto H = state.fields(HydroFieldNames::H, SymTensor::zero());
-  const auto pressure = state.fields(HydroFieldNames::pressure, 0.0);
+  const auto damagedPressure = state.fields(SolidFieldNames::damagedPressure, 0.0);   // stress uses the damaged pressure (LLNL/spheral#303)
   const auto soundSpeed = state.fields(HydroFieldNames::soundSpeed, 0.0);
   const auto omega = state.fields(HydroFieldNames::omegaGradh, 0.0);
   const auto S = state.fields(SolidFieldNames::deviatoricStress, SymTensor::zero());
@@ -314,7 +314,7 @@ evaluateDerivativesImpl(const Dimension::Scalar time,
   CHECK(massDensity.size() == numNodeLists);
   CHECK(specificThermalEnergy.size() == numNodeLists);
   CHECK(H.size() == numNodeLists);
-  CHECK(pressure.size() == numNodeLists);
+  CHECK(damagedPressure.size() == numNodeLists);
   CHECK(soundSpeed.size() == numNodeLists);
   CHECK(omega.size() == numNodeLists);
   CHECK(S.size() == numNodeLists);
@@ -412,7 +412,7 @@ evaluateDerivativesImpl(const Dimension::Scalar time,
       const auto& vi = velocity(nodeListi, i);
       const auto  rhoi = massDensity(nodeListi, i);
       //const auto  epsi = specificThermalEnergy(nodeListi, i);
-      const auto  Pi = pressure(nodeListi, i);
+      const auto  Pi = damagedPressure(nodeListi, i);
       const auto& Hi = H(nodeListi, i);
       const auto  ci = soundSpeed(nodeListi, i);
       const auto  omegai = omega(nodeListi, i);
@@ -449,7 +449,7 @@ evaluateDerivativesImpl(const Dimension::Scalar time,
       const auto& vj = velocity(nodeListj, j);
       const auto  rhoj = massDensity(nodeListj, j);
       //const auto  epsj = specificThermalEnergy(nodeListj, j);
-      const auto  Pj = pressure(nodeListj, j);
+      const auto  Pj = damagedPressure(nodeListj, j);
       const auto& Hj = H(nodeListj, j);
       const auto  cj = soundSpeed(nodeListj, j);
       const auto  omegaj = omega(nodeListj, j);
@@ -645,7 +645,7 @@ evaluateDerivativesImpl(const Dimension::Scalar time,
       const auto  mRZi = mi/circi;
       const auto& vi = velocity(nodeListi, i);
       const auto  rhoi = massDensity(nodeListi, i);
-      const auto  Pi = pressure(nodeListi, i);
+      const auto  Pi = damagedPressure(nodeListi, i);
       const auto& Hi = H(nodeListi, i);
       const auto& Si = S(nodeListi, i);
       const auto  STTi = -Si.Trace();

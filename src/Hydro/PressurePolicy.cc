@@ -24,12 +24,14 @@ namespace Spheral {
 //------------------------------------------------------------------------------
 template<typename Dimension>
 PressurePolicy<Dimension>::
-PressurePolicy():
+PressurePolicy(const bool damagePressureInPlace):
   FieldUpdatePolicy<Dimension, Scalar>({HydroFieldNames::massDensity,
                                         HydroFieldNames::specificThermalEnergy,
                                         SolidFieldNames::porositySolidDensity,
-                                        SolidFieldNames::porosityAlpha,
-                                        SolidFieldNames::tensorDamage}) {
+                                        SolidFieldNames::porosityAlpha}),
+  mDamagePressureInPlace(damagePressureInPlace) {
+  // Only depend on (and apply) tensor damage when we're scaling the pressure in place
+  if (mDamagePressureInPlace) this->addDependency(SolidFieldNames::tensorDamage);
 }
 
 //------------------------------------------------------------------------------
@@ -88,17 +90,11 @@ update(const KeyType& key,
 
   }
 
-  // Is someone trying to keep the damaged pressure in an independent Field?
-  // (I'm looking at you FSISPH)
-  const auto separateDamage = state.registered(buildKey(SolidFieldNames::damagedPressure));
-  Field<Dimension, Scalar>* PdPtr = nullptr;
-  if (separateDamage) PdPtr = &state.field(buildKey(SolidFieldNames::damagedPressure), 0.0);
-
-  // If there's damage for this material, apply it to the pressure
-  // This is complicated by FSISPH, which wants to keep track of the damaged pressure separately,
-  // so we check if someone has registered damaged pressure as a field for this NodeList, in
-  // which case we apply the damage to a new copy of the pressure.
-  if (state.registered(buildKey(SolidFieldNames::tensorDamage))) {
+  // If this policy owns the damage scaling apply the tensor damage to the pressure in place.
+  // Otherwise the damaged pressure is computed by DamagedPressurePolicy on its
+  // own field, and the plain pressure is left undamaged
+  if (mDamagePressureInPlace and
+      state.registered(buildKey(SolidFieldNames::tensorDamage))) {
     const auto& D = state.field(buildKey(SolidFieldNames::tensorDamage), SymTensor::zero());
 
     // Check for the appropriate minimum pressure
@@ -107,19 +103,14 @@ update(const KeyType& key,
     const auto PminDamage = (solidEOSptr != nullptr ?
                              solidEOSptr->minimumPressureDamage() :
                              Pmin);
-                       
+
     // Scale by the damage.
     const auto ni = P.numInternalElements();
 #pragma omp parallel for
     for (auto i = 0u; i < ni; ++i) {
       const auto Di = std::max(0.0, std::min(1.0, D(i).eigenValues().maxElement()));
       CHECK(Di >= 0.0 and Di <= 1.0);
-      const auto Pdi = std::max(Pmin, (1.0 - Di)*P(i)) + std::max(PminDamage, Di*P(i));
-      if (separateDamage) {
-        (*PdPtr)(i) = Pdi;
-      } else {
-        P(i) = Pdi;
-      }
+      P(i) = std::max(Pmin, (1.0 - Di)*P(i)) + std::max(PminDamage, Di*P(i));
     }
   }
 
@@ -127,7 +118,6 @@ update(const KeyType& key,
   if (usePorosity) {
     const auto& alpha = state.field(buildKey(SolidFieldNames::porosityAlpha), 0.0);
     P /= alpha;
-    if (separateDamage) (*PdPtr) /= alpha;
   }
 }
 
